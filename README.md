@@ -57,47 +57,56 @@ cd brewery-pipeline
 
 2. **Step 2: Build and Run Docker Containers**
 Start docker
-docker-compose build
+docker-compose build This is ok
 
 ![{result-for-docker-compose-build}](https://github.com/user-attachments/assets/07f19828-f2ab-48e3-9f0b-f18b7d4918b5)
-This is ok
 
-docker-compose up -d
+
+docker-compose up -d This is ok
 
 ![result-for-docker-compose-up-d}](https://github.com/user-attachments/assets/d28e9b98-6b52-4e42-840d-7a0c95645dc0)
-This is ok
+
 
 4. **Step 3: Set Up Mage AI**
 Access Mage AI by opening http://localhost:6789 in your browser.
+
 ![{Home}](https://github.com/user-attachments/assets/ed3ef8b0-1110-4522-a9e5-066084b27afd)
 
 
 Navigate to the pipelines (mage) folder to set up or run the pipeline.
+
 ![pipeline](https://github.com/user-attachments/assets/526e0365-1727-4bb6-8db3-d7a6258136de)
 
 Enter in pipeline brewery
+
 ![brewery](https://github.com/user-attachments/assets/fca587aa-e4c5-4e36-967a-9b77ebd1d409)
 
 Click in run once 
+
 ![run](https://github.com/user-attachments/assets/cf12c46a-f749-4f2c-862b-001b2104a326)
 
 After in Run now and wait
+
 ![{run-now}](https://github.com/user-attachments/assets/4f4c3c2d-e3ac-43ea-a796-8a0e54540a6c)
 
 There is already a trigger that runs every day at midnight.
 
 In edit pipeline you can see the code and see a preview of the data
+
 ![edit-pipeline](https://github.com/user-attachments/assets/1cccce3f-0ab6-41c0-b4f3-9a895d886554)
 
 5. **Step 4: Run the Pipeline**
 In Mage AI, run the pipeline stages:
 Bronze Layer: Fetch raw data.
+
 ![{Bronze-Layer}](https://github.com/user-attachments/assets/7fd342d1-ccd2-43f0-b11c-843f40ace66a)
 
 Silver Layer: Transform raw data.
+
 ![Silver-Layer](https://github.com/user-attachments/assets/c2d72035-5424-4e3d-8806-977c57b1feda)
 
 Gold Layer: Generate aggregated data.
+
 ![{Gold-Layer}](https://github.com/user-attachments/assets/abc17b9a-9963-456a-a674-0fd65fe73a3d)
 
 
@@ -167,7 +176,7 @@ Ensure secure and efficient connections between Mage and GCP for processing and 
 
 ## Author
 **José Everton Barreto da Silva**
-[GitHub](https://github.com/jevertonbs) | [LinkedIn](https://www.linkedin.com/in/jevertonbs/)
+[GitHub](https://github.com/jevertonbs) | [LinkedIn](https://www.linkedin.com/in/jevertonbs/) | [Email](mailto:jevertonbs@yahoo.com.br)
 
 ## Feedback
 For suggestions or issues, please create a GitHub issue or contact me directly.
