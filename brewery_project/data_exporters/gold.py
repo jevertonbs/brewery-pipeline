@@ -48,9 +48,19 @@ def export_data(data, *args, **kwargs):
         logger.info(f"Saving the data in the Gold Layer to {gold_file_path}...")
 
         # If the data volume is large, consider partitioning by state
-        df_gold.to_parquet(gold_file_path, index=False)
+        try:
+            df_gold.to_parquet(gold_file_path, index=False)
+            logger.info("Gold Layer data saved successfully!")
+        except Exception as e:
+            logger.error(f"Error saving data in Parquet format: {e}")
+            # Fallback to saving in CSV if Parquet fails
+            csv_file_path = f'{output_dir}/breweries_gold.csv'
+            df_gold.to_csv(csv_file_path, index=False)
+            logger.info(f"Data saved as CSV instead of Parquet at {csv_file_path}.")
+            raise
 
-        logger.info("Gold Layer data saved successfully!")
+        # Verifying if the Parquet file is saved correctly
+        verify_parquet(gold_file_path)
 
         return df_gold
 
@@ -59,4 +69,27 @@ def export_data(data, *args, **kwargs):
         raise
     except Exception as e:
         logger.exception(f"Error creating the Gold Layer: {e}")
+        raise
+
+
+def verify_parquet(file_path):
+    """
+    Verifies if the Parquet file exists and can be loaded correctly.
+
+    Args:
+        file_path: The path of the Parquet file to be verified.
+
+    Raises:
+        Exception: If the Parquet file doesn't exist or cannot be loaded.
+    """
+    try:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Parquet file {file_path} not found.")
+
+        # Try to read the Parquet file
+        pd.read_parquet(file_path)
+        logger.info(f"Parquet file {file_path} is valid and loaded successfully.")
+
+    except Exception as e:
+        logger.error(f"Error verifying Parquet file: {e}")
         raise
