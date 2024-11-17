@@ -68,7 +68,8 @@ remote_variables_dir: null
 retry_config: {}
 run_pipeline_in_one_process: false
 settings:
-  triggers: null
+  triggers:
+    - schedule: "0 0 * * *"  # Executa a pipeline à meia-noite todo dia
 spark_config: {}
 tags: []
 type: python
