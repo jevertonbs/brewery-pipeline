@@ -1,0 +1,14 @@
+triggers:
+- description: null
+  envs: []
+  last_enabled_at: 2024-11-17 03:57:28.911367
+  name: flawless illusion
+  pipeline_uuid: brewery
+  schedule_interval: '@daily'
+  schedule_type: time
+  settings: null
+  sla: null
+  start_time: 2024-11-17 00:00:00
+  status: active
+  token: 7e975f5d44df4093924d117884d2d285
+  variables: {}
