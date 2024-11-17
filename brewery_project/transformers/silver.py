@@ -1,114 +1,125 @@
 import pandas as pd
+import requests
+import json
+import time
 from loguru import logger
 import os
+from typing import Optional
 
-@transformer
-def transform_data(*args, **kwargs):
+if 'data_loader' not in globals():
+    from mage_ai.data_preparation.decorators import data_loader
+if 'test' not in globals():
+    from mage_ai.data_preparation.decorators import test
+
+# Configure logger
+logger.remove()  # Remove default handlers
+logger.add("bronze_layer.log", rotation="1 week", retention="30 days", compression="zip")  # Rotating logs
+
+
+def fetch_data_from_api(url: str, max_attempts: int = 10) -> Optional[list]:
     """
-    Transforms the data from the Bronze Layer (JSON) into the Parquet format.
-    Partitions the data by city/state and saves the result.
-    Includes robust error handling and logging.
+    Fetches data from the API with retry logic.
+    
+    Args:
+        url (str): API endpoint.
+        max_attempts (int): Maximum number of retry attempts.
+    
+    Returns:
+        Optional[list]: Parsed JSON data from the API, or None if all attempts fail.
+    """
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            logger.info(f"Attempt {attempt + 1}/{max_attempts} to fetch data from {url}")
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            logger.info("Data fetched successfully.")
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Attempt {attempt + 1} failed: {e}")
+            attempt += 1
+            time.sleep(2 ** attempt)  # Exponential backoff
+    logger.error(f"Failed to fetch data from {url} after {max_attempts} attempts.")
+    return None
+
+
+def save_data_to_file(data: list, file_path: str) -> None:
+    """
+    Saves data to a JSON file.
+    
+    Args:
+        data (list): Data to save.
+        file_path (str): Path to the output JSON file.
     """
     try:
-        bronze_file_path = 'bronze_layer.json'
+        with open(file_path, 'w') as f:
+            json.dump(data, f, indent=4)
+        logger.info(f"Data successfully saved to {file_path}.")
+    except IOError as e:
+        logger.error(f"Error saving data to {file_path}: {e}")
+        raise
 
-        # Check if the file exists
-        if not os.path.exists(bronze_file_path):
-            raise FileNotFoundError(f"The file '{bronze_file_path}' was not found.")
 
-        # Load JSON data
-        logger.info("Reading data from the Bronze Layer...")
-        df = pd.read_json(bronze_file_path)
-
-        # Check for empty data
+def load_data_to_dataframe(data: list) -> pd.DataFrame:
+    """
+    Loads data into a Pandas DataFrame.
+    
+    Args:
+        data (list): Data to load.
+    
+    Returns:
+        pd.DataFrame: DataFrame containing the data.
+    """
+    try:
+        df = pd.DataFrame(data)
         if df.empty:
-            raise ValueError("The data loaded from the Bronze Layer is empty.")
-
-        # Perform transformations
-        logger.info("Performing transformations on the data...")
-        df = df.rename(columns={
-            'id': 'brewery_id',
-            'name': 'brewery_name',
-            'brewery_type': 'type',
-            'city': 'brewery_city',
-            'state': 'brewery_state',
-        })
-        df = df.drop(columns=['address_2', 'address_3'], errors='ignore')
-
-        # Data validation: Ensure required columns are present
-        required_columns = ['brewery_id', 'brewery_name', 'type', 'brewery_city', 'brewery_state']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {missing_columns}")
-
-        logger.info(f"Transformed data preview:\n{df.head()}")
-
-        # Partitioning the data
-        output_dir = "silver_layer"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        logger.info("Saving transformed data in Parquet format...")
-        parquet_file_path = f'{output_dir}/breweries_silver.parquet'
-        df.to_parquet(parquet_file_path, partition_cols=['brewery_state', 'brewery_city'])
-
-        logger.info(f"Transformed data saved successfully to: {parquet_file_path}")
+            raise ValueError("The loaded data is empty.")
+        logger.info(f"Data loaded into DataFrame with {len(df)} records.")
         return df
-
-    except FileNotFoundError as fnf_error:
-        logger.error(f"File not found: {fnf_error}")
-        raise
-    except ValueError as val_error:
-        logger.error(f"Value error: {val_error}")
-        raise
-    except pd.errors.ParserError as parser_error:
-        logger.error(f"Data parsing error: {parser_error}")
-        raise
     except Exception as e:
-        logger.exception(f"Unexpected error during data transformation: {e}")
+        logger.error(f"Error loading data into DataFrame: {e}")
         raise
+
+
+@data_loader
+def load_data_from_api(*args, **kwargs):
+    """
+    Loads data from the Open Brewery DB API and returns a Pandas DataFrame.
+    Saves the raw data as a JSON file named bronze_layer.json.
+    """
+    url = 'https://api.openbrewerydb.org/breweries'
+    bronze_file_path = 'bronze_layer.json'
+
+    data = fetch_data_from_api(url)
+    if data is None:
+        return pd.DataFrame()  # Return empty DataFrame if fetching data fails
+
+    save_data_to_file(data, bronze_file_path)
+    return load_data_to_dataframe(data)
 
 
 @test
-def test_parquet_creation(*args, **kwargs) -> None:
+def test_output(output, *args) -> None:
     """
-    Tests if the Parquet file was created correctly in the Silver Layer.
-    Additional validations on the Parquet content.
+    Validates the output DataFrame from the Bronze block.
     """
-    try:
-        parquet_file_path = 'silver_layer/breweries_silver.parquet'
+    logger.info("Starting Bronze block output validation.")
+    assert isinstance(output, pd.DataFrame), "Output is not a DataFrame."
+    assert not output.empty, "The output DataFrame is empty."
 
-        # Check if the Parquet file exists
-        assert os.path.exists(parquet_file_path), f"Parquet file '{parquet_file_path}' was not created."
+    expected_columns = ['id', 'name', 'brewery_type', 'city', 'state']
+    missing_columns = [col for col in expected_columns if col not in output.columns]
+    assert not missing_columns, f"Missing columns in the DataFrame: {missing_columns}"
 
-        logger.info("Parquet file exists. Validating content...")
+    assert output['id'].is_unique, "Duplicate IDs found in the DataFrame."
+    logger.info("Bronze block output validation completed successfully.")
 
-        # Load and validate Parquet data
-        df = pd.read_parquet(parquet_file_path)
 
-        # Check if the Parquet file is empty
-        assert not df.empty, "The Parquet file is empty."
-
-        # Check if all required columns are present
-        required_columns = ['brewery_id', 'brewery_name', 'type', 'brewery_city', 'brewery_state']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        assert not missing_columns, f"Missing columns in Parquet: {missing_columns}"
-
-        # Check for null values in important columns
-        assert df[required_columns].notnull().all().all(), "There are null values in required columns."
-
-        # Check if there are any duplicates
-        assert df.duplicated(subset=['brewery_id']).sum() == 0, "There are duplicate brewery_id values."
-
-        # Check if data is partitioned correctly (basic check)
-        partition_check = df.groupby(['brewery_state', 'brewery_city']).size()
-        logger.info(f"Number of unique partitions: {partition_check.shape[0]}")
-
-        logger.info("Parquet file validation successful.")
-        
-    except AssertionError as ae:
-        logger.error(f"Test failed: {ae}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error during the test: {e}")
-        raise
+@test
+def test_file_creation(*args, **kwargs) -> None:
+    """
+    Verifies the existence of the bronze_layer.json file.
+    """
+    bronze_file_path = 'bronze_layer.json'
+    assert os.path.exists(bronze_file_path), f"The file {bronze_file_path} was not created."
+    logger.info(f"The file {bronze_file_path} exists and is validated.")
