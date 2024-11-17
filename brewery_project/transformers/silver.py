@@ -1,15 +1,11 @@
 import pandas as pd
-if 'transformer' not in globals():
-    from mage_ai.data_preparation.decorators import transformer
-if 'test' not in globals():
-    from mage_ai.data_preparation.decorators import test
 from loguru import logger
 import os
 
 @transformer
 def transform_data(*args, **kwargs):
     """
-    Transforms the data from the Bronze Layer (JSON) into the Parquet or Delta format.
+    Transforms the data from the Bronze Layer (JSON) into the Parquet format.
     Partitions the data by city/state and saves the result.
     Includes robust error handling and logging.
     """
@@ -77,6 +73,7 @@ def transform_data(*args, **kwargs):
 def test_parquet_creation(*args, **kwargs) -> None:
     """
     Tests if the Parquet file was created correctly in the Silver Layer.
+    Additional validations on the Parquet content.
     """
     try:
         parquet_file_path = 'silver_layer/breweries_silver.parquet'
@@ -88,7 +85,24 @@ def test_parquet_creation(*args, **kwargs) -> None:
 
         # Load and validate Parquet data
         df = pd.read_parquet(parquet_file_path)
+
+        # Check if the Parquet file is empty
         assert not df.empty, "The Parquet file is empty."
+
+        # Check if all required columns are present
+        required_columns = ['brewery_id', 'brewery_name', 'type', 'brewery_city', 'brewery_state']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        assert not missing_columns, f"Missing columns in Parquet: {missing_columns}"
+
+        # Check for null values in important columns
+        assert df[required_columns].notnull().all().all(), "There are null values in required columns."
+
+        # Check if there are any duplicates
+        assert df.duplicated(subset=['brewery_id']).sum() == 0, "There are duplicate brewery_id values."
+
+        # Check if data is partitioned correctly (basic check)
+        partition_check = df.groupby(['brewery_state', 'brewery_city']).size()
+        logger.info(f"Number of unique partitions: {partition_check.shape[0]}")
 
         logger.info("Parquet file validation successful.")
         
